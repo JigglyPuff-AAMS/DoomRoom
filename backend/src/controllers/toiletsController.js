@@ -55,7 +55,17 @@ const data = await response.json();
 
 console.log("response =", data);
 
-res.json(data) // restroom data
+
+const formatted = data.elements.map(el => ({
+    id: el.id,
+    lat: el.lat,
+    lon: el.lon,
+    wheelchair: el.tags?.wheelchair ?? 'unknown',
+
+}))
+
+
+res.json(formatted) // restroom data
 console.log(data)
 
 } catch (err) {
