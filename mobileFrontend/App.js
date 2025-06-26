@@ -4,17 +4,17 @@ import { StatusBar } from 'expo-status-bar';
 import { StyleSheet, Text, View } from 'react-native';
 
 export default function App() {
-  const [coordinates, setCoordinates] = useState(null);   //setting initial coordinates to null
+  const [coordinates, setCoordinates] = useState([]);   //setting initial coordinates to null
 
-  const handleMapPress = (event: MapPressEvent) => {     //handler function for onPress property
+  const handleMapPress = (event) => {     //handler function for onPress property
     const { latitude, longitude } = event.nativeEvent.coordinate; //destructuring lat and lon from the event object returned by the onPress property
     console.log('Coordinates:', latitude, longitude);
-    setCoordinates({ latitude, longitude }); //setting co-ordinates using setter function
+    setCoordinates((prev)=> [...prev, { latitude, longitude } ]); //setting co-ordinates using setter function
   };
 
   return (
     <View style={styles.container}>
-      <Text>LETS GOOOO!!!!</Text>
+      <Text>Need to go? You camet to the right place.</Text>
       <StatusBar style="auto" />
 
       <MapView
@@ -28,12 +28,13 @@ export default function App() {
         }}
         onPress={handleMapPress}  //calling handler function on press
       >
-        {coordinates && (    //render marker if coordinates exists
+        {coordinates.map((latLon, index)  => (
           <Marker
-            coordinate={coordinates} //required prop for Marker to place the pin on the maps
+            key={index}
+            coordinate={latLon} //required prop for Marker to place the pin on the maps
             pinColor="red"
-          />
-        )}
+          /> //render marker if coordinates exist         
+        ))}  
       </MapView>
     </View>
   );
