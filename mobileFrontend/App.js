@@ -1,21 +1,23 @@
-import React, { useState, useRef } from 'react';
-import MapView, { Marker, PROVIDER_GOOGLE, MapPressEvent } from 'react-native-maps';
-import * as Location from 'expo-location';
+import React, { useState, useEffect, useRef } from 'react';
+import MapView, { Marker, PROVIDER_GOOGLE, Callout } from 'react-native-maps';
 import { StatusBar } from 'expo-status-bar';
-import { StyleSheet, Text, View } from 'react-native';
-import { TextInput, TouchableOpacity } from 'react-native';
+import { Alert, StyleSheet, Text, View } from 'react-native';
+import * as Location from 'expo-location';
 import { Ionicons } from '@expo/vector-icons';
+import { TextInput, TouchableOpacity } from 'react-native';
 
 
 export default function App() {
-  const [coordinates, setCoordinates] = useState([]); //setting initial coordinates to null
-  const [searchAddress, setSearchAddress] = useState('');  //setting initial address to null
+  const [location, setLocation] = useState(null);
+  const [toilets, setToiletCoordinates] = useState([]);   //setting initial coordinates to null
+ const [searchAddress, setSearchAddress] = useState('');  //setting initial address to null
   const mapRef = useRef(null);
+
 
   const handleMapPress = (event) => {     //handler function for onPress property
     const { latitude, longitude } = event.nativeEvent.coordinate; //destructuring lat and lon from the event object returned by the onPress property
     console.log('Coordinates:', latitude, longitude);
-    setCoordinates((prev)=> [...prev, { latitude, longitude } ]); //setting co-ordinates using setter function
+    setToiletCoordinates((prev)=> [...prev, { latitude, longitude } ]); //setting co-ordinates using setter function
   };
 
   const handleAddressSearch = async () => {
@@ -31,7 +33,7 @@ export default function App() {
     console.log(latitude, longitude);
 
     const newCoord = { latitude, longitude }; //storing the new Cor-ordinates
-    setCoordinates((prev) => [...prev, newCoord]); //calling the setCordinates function with the new co-ordinates
+    setToiletCoordinates((prev) => [...prev, newCoord]); //calling the setCordinates function with the new co-ordinates
 
     mapRef.current?.animateToRegion({  //move the maps to the location of the dropped pin
       ...newCoord,
@@ -40,47 +42,104 @@ export default function App() {
     });
   }
 
+
+  useEffect(()=> {
+
+    // request for location permissions
+    (async () => {
+      let {status} = await Location.requestForegroundPermissionsAsync();
+      if (status !== 'granted') {
+        Alert.alert('Permission denied', 'Location access is needed to find restrooms nearby.');
+        return;
+      }
+
+      // fetch availible restrooms on location
+let {coords} = await Location.getCurrentPositionAsync({}); // returns a coords object
+setLocation(coords);
+
+fetchToilets(coords.latitude, coords.longitude);
+
+
+    })(); // forgot to invoke the useEffect
+  }, []);
+
+
+  const fetchToilets = async (lat, lon) => {
+    try {
+      const res = await fetch(`https://3de8-47-153-48-155.ngrok-free.app/toilets?lat=${lat}&lon=${lon}`);
+      const data = await res.json();
+      console.log(data)
+
+      setToiletCoordinates(data);
+    } catch (err) {
+      console.error('Failed to fetch toilets:', err);
+    }
+  };
+
+
+
+
   return (
     <View style={styles.container}>
-      <Text>Need to go? You camet to the right place.</Text>
+      <Text>Need to go? You came to the right place.</Text>
       <StatusBar style="auto" />
+
+      <View style={styles.searchContainer}>
+  
+   <TextInput
+          style={styles.input}
+          placeholder="Enter an address"
+          value={searchAddress}
+    onChangeText={setSearchAddress}
+          onSubmitEditing={handleAddressSearch}  //handler function for onSubmit
+          returnKeyType="search"
+        />
+
+        <TouchableOpacity style={styles.clearButton} onPress={() => setSearchAddress('')}> 
+          <Ionicons name="close-circle" size={20} color="gray" />
+        </TouchableOpacity>
+        </View>
+
+            {/** Person locations */}
+      {location ? (
 
       <MapView
         ref={mapRef}
         provider={PROVIDER_GOOGLE}
         style={styles.map}
         initialRegion={{
-          latitude: -33.860664,
-          longitude: 151.208138,
+          latitude: location.latitude,
+          longitude: location.longitude,
           latitudeDelta: 0.02,
           longitudeDelta: 0.01,
         }}
+         showsUserLocation={true}
         onPress={handleMapPress}  //calling handler function on press
       >
-        {coordinates.map((latLon, index)  => (
+        
+            {/** Toilet locations */}
+        {toilets.map((toilet) => (
           <Marker
-            key={index}
-            coordinate={latLon} //required prop for Marker to place the pin on the maps
-            pinColor="red"
-          /> //render marker if coordinates exist
-        ))}
-      </MapView>
-      <View style={styles.searchContainer}>
-      <TextInput
-          style={styles.input}
-          placeholder="Enter an address"
-          value={searchAddress}
-          onChangeText={setSearchAddress}
-          onSubmitEditing={handleAddressSearch}  //handler function for onSubmit
-          returnKeyType="search"
-        />
-        <TouchableOpacity style={styles.clearButton} onPress={() => setSearchAddress('')}> 
-          <Ionicons name="close-circle" size={20} color="gray" />
-        </TouchableOpacity>
-      </View>
+            key={toilet.id}
+            coordinate={{ 
+              latitude: toilet.lat || toilet.latitude,
+              longitude: toilet.lon || toilet.longitude,
+ }} //required prop for Marker to place the pin on the maps
+            pinColor={toilet.wheelchair === "yes" ? "green" : "red"}
+         > 
+               <Callout>
+                <Text>Wheelchair accessible: {toilet.wheelchair}</Text>
+              </Callout>
+            </Marker>
+          ))}
+        </MapView>
+
+
+      ) : ( <Text>Fetching location...</Text>)}
     </View>
   );
 }
+
 
 const styles = StyleSheet.create({
   container: {
@@ -104,6 +163,9 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.3,
     shadowRadius: 4,
     elevation: 5, // for Android shadow
+    flexDirection: 'row',
+    alignItems: 'center',
+    zIndex: 1000,
     },
   input: {
     flex: 1,
@@ -118,3 +180,5 @@ const styles = StyleSheet.create({
     transform: [{ translateY: -10 }],
   },
 });
+
+
